@@ -404,15 +404,18 @@ func TestDeclarativeProtocolRuntimeExecutesCreatePollAndDownload(t *testing.T) {
 	}
 }
 
-func TestDeclarativeProtocolPollingPolicyOnlyChangesVideoBehavior(t *testing.T) {
+// Video waits before the first query; other async tasks (images) query right
+// away every 2.5s. Both keep querying an accepted task through transient
+// failures and give up only after repeated 404s (docs: task-runtime-stability).
+func TestDeclarativeProtocolPollingPolicyByMode(t *testing.T) {
 	video := declarativeProtocolPollPolicy("video")
 	if video.InitialDelay != defaultVideoPollInterval || !video.RetryTransient {
 		t.Fatalf("video polling policy = %#v, want delayed resilient polling", video)
 	}
 
 	image := declarativeProtocolPollPolicy("image")
-	if image.InitialDelay != 0 || image.Interval != 2500*time.Millisecond || image.RetryTransient {
-		t.Fatalf("image polling policy = %#v, want legacy immediate fail-fast polling", image)
+	if image.InitialDelay != 0 || image.Interval != 2500*time.Millisecond || !image.RetryTransient || image.MaxNotFoundMisses != 3 {
+		t.Fatalf("image polling policy = %#v, want immediate resilient polling that stops after three 404s", image)
 	}
 }
 
